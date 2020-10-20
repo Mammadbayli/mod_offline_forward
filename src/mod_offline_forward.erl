@@ -42,7 +42,7 @@ create_message(Acc) ->
   Acc.
 
 post_offline_message(From, To, Type, Body, MessageId) ->
-  ?INFO_MSG("Posting From ~p To ~p Body ~p ID ~p~n",[From, To, Body, $
+    ?INFO_MSG("Posting From ~p To ~p Body ~p ID ~p~n",[From, To, Body, MessageId]),
   ToUser = To#jid.luser,
   FromUser = From#jid.luser,
 %   Vhost = To#jid.lserver,
@@ -53,7 +53,7 @@ post_offline_message(From, To, Type, Body, MessageId) ->
     "\"body\": \"", binary_to_list(Body), "\", ",
     "\"messageId\": \"", binary_to_list(MessageId), "\"",
   "}"], ""),
-  Request = {"http://api.mammadbayli.com/notify", [{"Authorization", $
+  Request = {"http://api.mammadbayli.com/notify", [{"Authorization", "secrettoken"}], "application/json", Data},
   httpc:request(post, Request,[],[]),
   ?INFO_MSG("post request sent", []).
 
