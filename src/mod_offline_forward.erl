@@ -45,15 +45,14 @@ post_offline_message(From, To, Type, Body, MessageId) ->
     ?INFO_MSG("Posting From ~p To ~p Body ~p ID ~p~n",[From, To, Body, MessageId]),
   ToUser = To#jid.luser,
   FromUser = From#jid.luser,
-%   Vhost = To#jid.lserver,
+  Vhost = To#jid.lserver,
+  OfflineMessageCount = mod_offline:get_queue_length(ToUser, Vhost),
   Data = string:join(["{",
     "\"to\": \"", binary_to_list(ToUser), "\", ",
     "\"from\": \"", binary_to_list(FromUser), "\", ",
-    "\"type\": \"", binary_to_list(Type), "\", ",
     "\"body\": \"", binary_to_list(Body), "\", ",
-    "\"messageId\": \"", binary_to_list(MessageId), "\"",
+    "\"badge\": \"", integer_to_list(OfflineMessageCount), "\"",
   "}"], ""),
   Request = {"http://api.mammadbayli.com/notify", [{"Authorization", "secrettoken"}], "application/json", Data},
   httpc:request(post, Request,[],[]),
   ?INFO_MSG("post request sent", []).
-
