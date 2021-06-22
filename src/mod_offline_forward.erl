@@ -53,6 +53,7 @@ post_offline_message(From, To, Type, Body, MessageId) ->
     "\"body\": \"", binary_to_list(Body), "\", ",
     "\"badge\": \"", integer_to_list(OfflineMessageCount), "\"",
   "}"], ""),
-  Request = {"http://api.mammadbayli.com/notify", [{"Authorization", "secrettoken"}], "application/json", Data},
+  
+  Request = {string:join([os:getenv("NFS_API_URL"),"/notify"]), [{"Authorization", os:getenv("NFS_API_KEY")}], "application/json", Data},
   httpc:request(post, Request,[],[]),
   ?INFO_MSG("post request sent", []).
