@@ -3,20 +3,21 @@
 -behaviour(gen_mod).
  
 -export([start/2, stop/1, mod_options/1, depends/2, create_message/1]).
- 
+
+%-include("misc.erl").
 -include("scram.hrl").
 -include("xmpp.hrl").
 -include("logger.hrl").
  
 start(_Host, _Opt) ->
-  ?INFO_MSG("starting mod_offline_forward", []),
-  inets:start(),
-  ?INFO_MSG("HTTP client started", []),
-	ejabberd_hooks:add(offline_message_hook, _Host, ?MODULE, create_message, 50).  
+    ?INFO_MSG("starting mod_offline_forward", []),
+    inets:start(),
+    ?INFO_MSG("HTTP client started", []),
+    ejabberd_hooks:add(offline_message_hook, _Host, ?MODULE, create_message, 50).  
  
 stop (_Host) ->
-	?INFO_MSG("stopping mod_offline_forward", []),
-	ejabberd_hooks:delete(offline_message_hook, _Host, ?MODULE, create_message, 50).
+    ?INFO_MSG("stopping mod_offline_forward", []),
+    ejabberd_hooks:delete(offline_message_hook, _Host, ?MODULE, create_message, 50).
 
 depends(_Host, _Opts) ->
     [].
@@ -25,24 +26,40 @@ mod_options(_Host) ->
     [].
  
 create_message({Action, Packet} = Acc) when (Packet#message.type == chat) ->
-  Type = fxml:get_path_s(xmpp:encode(Packet), [{elem,list_to_binary("data")}, {attr, list_to_binary("type")}]),
-  case Type of
-    <<"text">> ->  
-		  [{text, _, Body}] = Packet#message.body;
-    <<"audio">> -> 
-			Body = list_to_binary("Voice");
-		<<"photo">> -> 
-			Body = list_to_binary("Photo")
-  end,
+    Type = fxml:get_path_s(xmpp:encode(Packet), [{elem,list_to_binary("data")}, {attr, list_to_binary("type")}]),
+    
+    case Type of
+        <<"text">> ->  
+            [{text, _, Body}] = Packet#message.body;
+        <<"audio">> -> 
+	    Body = list_to_binary("Voice");
+	<<"photo">> -> 
+	    Body = list_to_binary("Photo");
+	_ -> 
+            Body = list_to_binary("Mesage")
+    end,
 
-  post_offline_message(Packet#message.from, Packet#message.to, Type, Body, Packet#message.id),
-  Acc;
+    post_offline_message(Packet#message.from, Packet#message.to, Body, Packet#message.id),
+    
+    Acc;
+
+create_message({Action, Packet} = Acc) ->
+    case misc:unwrap_mucsub_message(Packet) of
+        #message{} = Msg ->
+	    %?INFO_MSG("[Sub Elements] ~p~n",[Msg#message.body]);
+	    [{text, _, Body}] = Msg#message.body,
+            post_offline_message(Msg#message.from, Msg#message.to, Body, Msg#message.id);
+	_ ->
+            Packet
+    end,
+
+    Acc;
 
 create_message(Acc) ->
-  Acc.
+    Acc.
 
-post_offline_message(From, To, Type, Body, MessageId) ->
-    ?INFO_MSG("Posting From ~p To ~p Body ~p ID ~p~n",[From, To, Body, MessageId]),
+post_offline_message(From, To, Body, MessageId) ->
+  ?INFO_MSG("Posting From ~p To ~p Body ~p ID ~p~n",[From, To, Body, MessageId]),
   ToUser = To#jid.luser,
   FromUser = From#jid.luser,
   Vhost = To#jid.lserver,
