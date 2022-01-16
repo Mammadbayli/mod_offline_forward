@@ -2,12 +2,14 @@
 
 -behaviour(gen_mod).
  
--export([start/2, stop/1, mod_options/1, depends/2, create_message/1]).
+-export([start/2, stop/1, mod_options/1, depends/2, create_message/1, mod_doc/0]).
 
 -include("scram.hrl").
 -include("xmpp.hrl").
 -include("logger.hrl").
- 
+%% Required by ?T macro
+-include("translate.hrl"). 
+
 start(_Host, _Opt) ->
     ?INFO_MSG("starting mod_offline_forward", []),
     inets:start(),
@@ -23,6 +25,10 @@ depends(_Host, _Opts) ->
 
 mod_options(_Host) ->
     [].
+
+mod_doc() ->
+    #{desc =>
+          ?T("Forward offline messages to HTTP endpoint.")}.
 
 create_message({Action, Packet} = Acc) when (Packet#message.type == chat) ->
     Type = fxml:get_path_s(xmpp:encode(Packet), [{elem,list_to_binary("data")}, {attr, list_to_binary("type")}]),
