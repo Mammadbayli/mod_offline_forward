@@ -23,45 +23,44 @@ depends(_Host, _Opts) ->
 
 mod_options(_Host) ->
     [].
- 
+
 create_message({Action, Packet} = Acc) when (Packet#message.type == chat) ->
-    Type = fxml:get_path_s(xmpp:encode(Packet), [{elem, <<"data">>)}, {attr, <<"type">>}]),
-    
+    Type = fxml:get_path_s(xmpp:encode(Packet), [{elem,list_to_binary("data")}, {attr, list_to_binary("type")}]),
+
     case Type of
-        <<"text">> ->  
-            [{text, _, Body}] = Packet#message.body;
+        <<"text">> ->
+	    [{text, _, Body}] = Packet#message.body;
         <<"audio">> -> 
-	    Body = "Voice";
+	    Body = <<"🎤 Audio"/utf8>>;
 	<<"photo">> -> 
-	    Body = "Photo";
+	    Body = <<"📷 Photo"/utf8>>;
 	_ -> 
-            Body = "Mesage"
+            Body = <<"Message">>
     end,
 
-    To = (Packet#message.to)#jid.luser,
-    From = (Packet#message.from)#jid.luser,
+    To = binary_to_list((Packet#message.to)#jid.luser),
+    From = binary_to_list((Packet#message.from)#jid.luser),
     
     Vhost = (Packet#message.to)#jid.lserver,
     BadgeCount = mod_offline:get_queue_length((Packet#message.to)#jid.luser, Vhost),
 
-    post_offline_message(From, To, Body, BadgeCount),
+    post_offline_message(From, To, binary_to_list(Body), BadgeCount),
     
     Acc;
 
 create_message({Action, Packet} = Acc) ->
     case misc:unwrap_mucsub_message(Packet) of
         #message{} = Msg ->
-	    [{text, _, Subject}] = Msg#message.subject,
-            To = (Msg#message.to)#jid.luser,
-		    
-            User = (Msg#message.from)#jid.luser,
-	    Resource = (Msg#message.from)#jid.resource,
-	    From = [Resource/binary, <<"@">>/binary, User/binary],
+	    [{text, _, Body}] = Msg#message.body,
+	    User = binary_to_list((Msg#message.from)#jid.user),
+	    Resource = binary_to_list((Msg#message.from)#jid.resource),
+            To = binary_to_list((Msg#message.to)#jid.luser),
+	    From = string:join([Resource, User],"@"),
 
 	    Vhost = (Msg#message.to)#jid.lserver,
             BadgeCount = mod_offline:get_queue_length((Msg#message.to)#jid.luser, Vhost),
 
-            post_offline_message(From, To, Subject, BadgeCount);
+            post_offline_message(From, To, binary_to_list(Body), BadgeCount);
 	_ ->
             Packet
     end,
@@ -71,11 +70,16 @@ create_message({Action, Packet} = Acc) ->
 create_message(Acc) ->
     Acc.
 
-post_offline_message(From, To, Body, BadgeCount) ->	
-    BinaryCount = integer_to_binary(BadgeCount),
-    Data = << <<"{\"to\": \"">>/binary, To/binary, <<"\", \"from\": \"">>/binary, From/binary, <<"\", \"body\": \"">>/binary, Body/binary, <<"\", \"badge\": ">>/binary, BinaryCount/binary, <<"}">>/binary >>,
+post_offline_message(From, To, Body, BadgeCount) ->
+    ?INFO_MSG("Posting From ~p To ~p Body ~p ID ~p~n",[From, To, Body, BadgeCount]),
+ 
+    Data = string:join(["{",
+        "\"to\": \"", To, "\", ",
+        "\"from\": \"", From, "\", ",
+        "\"body\": \"", Body, "\", ",
+        "\"badge\": \"", integer_to_list(BadgeCount), "\"",
+    "}"], ""),
   
-    ?INFO_MSG("Posting Data ~p~n",[Data]),
-    Request = { string:join([os:getenv("NFS_API_URL"),"/notify"], ""), [{"Authorization", os:getenv("NFS_API_KEY")}], "application/json", Data },
+    Request = {string:join([os:getenv("NFS_API_URL"),"/notify"], ""), [{"Authorization", os:getenv("NFS_API_KEY")}], "application/json", Data},
     httpc:request(post, Request,[],[]),
     ?INFO_MSG("post request sent", []).
