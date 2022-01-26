@@ -40,6 +40,8 @@ create_message({Action, Packet} = Acc) when (Packet#message.type == chat) ->
 	    Body = <<"🎤 Audio"/utf8>>;
 	<<"photo">> -> 
 	    Body = <<"📷 Photo"/utf8>>;
+	<<"post">> -> 
+	    Body = <<"Shared a post"/utf8>>;
 	_ -> 
             Body = <<"Message">>
     end,
