@@ -2,7 +2,13 @@
 
 -behaviour(gen_mod).
  
--export([start/2, stop/1, mod_options/1, depends/2, create_message/1, mod_doc/0]).
+-export([start/2,
+        stop/1, 
+        mod_options/1,
+        mod_opt_type/1, 
+        depends/2, 
+        create_message/1, 
+        mod_doc/0]).
 
 -include("scram.hrl").
 -include("xmpp.hrl").
@@ -24,7 +30,13 @@ depends(_Host, _Opts) ->
     [].
 
 mod_options(_Host) ->
-    [].
+  [{auth_token, <<"secret">>},
+  {remote_url, <<"http://example.com/test">>}].
+
+mod_opt_type(auth_token) ->
+  fun iolist_to_binary/1;
+mod_opt_type(remote_url) ->
+  fun iolist_to_binary/1.
 
 mod_doc() ->
     #{desc =>
@@ -36,6 +48,8 @@ create_message({Action, Packet} = Acc) when (Packet#message.type == chat) ->
     From = binary_to_list((Packet#message.from)#jid.luser),
     Vhost = (Packet#message.to)#jid.lserver,
     BadgeCount = mod_offline:get_queue_length((Packet#message.to)#jid.luser, Vhost),
+
+    forward_message(Packet, BadgeCount),
 
     Type = fxml:get_path_s(xmpp:encode(Packet), [{elem,list_to_binary("data")}, {attr, list_to_binary("type")}]),
 
@@ -78,6 +92,22 @@ create_message({Action, Packet} = Acc) ->
 
 create_message(Acc) ->
     Acc.
+
+forward_message(Packet, BadgeCount) ->
+    Host = (Packet#message.to)#jid.lserver,
+    
+    RemoteUrl = gen_mod:get_module_opt(Host, ?MODULE, remote_url),
+    Token = gen_mod:get_module_opt(Host, ?MODULE, auth_token),
+  
+    Stanza = fxml:element_to_binary(xmpp:encode(Packet)),
+
+     Data = string:join(["{",
+        "\"stanza\": \"", binary_to_list(Stanza), "\", ",
+        "\"badge\": \"", integer_to_list(BadgeCount), "\"",
+    "}"], ""),
+
+    Request = {binary_to_list(RemoteUrl), [{"Authorization", binary_to_list(Token)}], "application/json", Data},
+    httpc:request(post, Request,[],[]).
 
 post_offline_message(From, To, Body, BadgeCount) ->
     ?INFO_MSG("Posting From ~p To ~p Body ~p ID ~p~n",[From, To, Body, BadgeCount]),
